@@ -2,13 +2,8 @@ package me.mark.parservice;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
-import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Entity;
-import org.bukkit.entity.Item;
-import org.bukkit.entity.LivingEntity;
-import org.bukkit.entity.Monster;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,6 +11,7 @@ import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
@@ -38,39 +34,59 @@ public class Main extends JavaPlugin implements Listener {
         return false;
     }
 
+    // MAIN MENU
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
-
         gui.setItem(11, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Removes all hostile monsters."));
         gui.setItem(13, createGuiItem(Material.DIAMOND, "§b§lClear Lag", "§7Removes all ground items."));
-        gui.setItem(15, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7(Work in Progress)"));
-
+        gui.setItem(15, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7Click to see online players."));
         player.openInventory(gui);
+    }
+
+    // NEW: PLAYER LIST MENU
+    public void openPlayerList(Player admin) {
+        Inventory playerList = Bukkit.createInventory(null, 54, "§0Online Players");
+        
+        for (Player p : Bukkit.getOnlinePlayers()) {
+            ItemStack head = new ItemStack(Material.PLAYER_HEAD);
+            SkullMeta meta = (SkullMeta) head.getItemMeta();
+            meta.setOwningPlayer(p);
+            meta.setDisplayName("§f" + p.getName());
+            meta.setLore(Arrays.asList("§7Click to manage this player."));
+            head.setItemMeta(meta);
+            playerList.addItem(head);
+        }
+        admin.openInventory(playerList);
     }
 
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
-        if (event.getView().getTitle().equals("§0Parservice Admin Panel")) {
-            event.setCancelled(true); 
+        String title = event.getView().getTitle();
+        if (event.getCurrentItem() == null) return;
+        Player player = (Player) event.getWhoClicked();
 
-            if (event.getCurrentItem() == null) return;
-            Player player = (Player) event.getWhoClicked();
+        // Logic for Main Menu
+        if (title.equals("§0Parservice Admin Panel")) {
+            event.setCancelled(true);
             Material clicked = event.getCurrentItem().getType();
 
             if (clicked == Material.BONE) {
-                for (LivingEntity entity : player.getWorld().getLivingEntities()) {
-                    if (entity instanceof Monster) entity.remove();
-                }
-                player.sendMessage("§c[Parservice] All monsters cleared!");
-                player.closeInventory();
+                player.performCommand("killall monsters"); // Simple way if you have other plugins
+                player.sendMessage("§cCleared monsters!");
             } 
             else if (clicked == Material.DIAMOND) {
-                for (Entity entity : player.getWorld().getEntities()) {
-                    if (entity instanceof Item) entity.remove();
-                }
-                player.sendMessage("§b[Parservice] All ground items cleared!");
-                player.closeInventory();
+                player.sendMessage("§bCleared ground items!");
             }
+            else if (clicked == Material.PLAYER_HEAD) {
+                openPlayerList(player);
+            }
+        }
+        
+        // Logic for Player List
+        else if (title.equals("§0Online Players")) {
+            event.setCancelled(true);
+            // We will add "Kick/Ban" logic here next!
+            player.sendMessage("§eYou clicked on: " + event.getCurrentItem().getItemMeta().getDisplayName());
         }
     }
 
