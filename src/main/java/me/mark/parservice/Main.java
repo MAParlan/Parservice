@@ -15,26 +15,29 @@ import org.bukkit.inventory.meta.SkullMeta;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.UUID;
 
 public class Main extends JavaPlugin implements Listener {
+
+    // This helps the plugin remember which player an admin is looking at
+    private final HashMap<UUID, UUID> targetCache = new HashMap<>();
 
     @Override
     public void onEnable() {
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice is Online!");
+        getLogger().info("Parservice: Punish Module Loaded!");
     }
 
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (cmd.getName().equalsIgnoreCase("adminpanel")) {
-            if (!(sender instanceof Player)) return true;
+        if (cmd.getName().equalsIgnoreCase("adminpanel") && sender instanceof Player) {
             openMainGUI((Player) sender);
             return true;
         }
         return false;
     }
 
-    // MAIN MENU
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
         gui.setItem(11, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Removes all hostile monsters."));
@@ -43,50 +46,74 @@ public class Main extends JavaPlugin implements Listener {
         player.openInventory(gui);
     }
 
-    // NEW: PLAYER LIST MENU
     public void openPlayerList(Player admin) {
         Inventory playerList = Bukkit.createInventory(null, 54, "§0Online Players");
-        
         for (Player p : Bukkit.getOnlinePlayers()) {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
             meta.setOwningPlayer(p);
             meta.setDisplayName("§f" + p.getName());
-            meta.setLore(Arrays.asList("§7Click to manage this player."));
             head.setItemMeta(meta);
             playerList.addItem(head);
         }
         admin.openInventory(playerList);
     }
 
+    // NEW: The specific menu for Kicking/Teleporting
+    public void openPunishMenu(Player admin, Player target) {
+        Inventory punish = Bukkit.createInventory(null, 9, "§cManage: " + target.getName());
+        
+        punish.setItem(2, createGuiItem(Material.COMPASS, "§aTeleport", "§7Go to this player."));
+        punish.setItem(4, createGuiItem(Material.BARRIER, "§6Kick Player", "§7Remove them from the server."));
+        punish.setItem(6, createGuiItem(Material.BEDROCK, "§4Ban Player", "§7Permanent ban."));
+
+        targetCache.put(admin.getUniqueId(), target.getUniqueId());
+        admin.openInventory(punish);
+    }
+
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
-        String title = event.getView().getTitle();
         if (event.getCurrentItem() == null) return;
-        Player player = (Player) event.getWhoClicked();
+        String title = event.getView().getTitle();
+        Player admin = (Player) event.getWhoClicked();
 
-        // Logic for Main Menu
+        // 1. MAIN MENU LOGIC
         if (title.equals("§0Parservice Admin Panel")) {
             event.setCancelled(true);
-            Material clicked = event.getCurrentItem().getType();
-
-            if (clicked == Material.BONE) {
-                player.performCommand("killall monsters"); // Simple way if you have other plugins
-                player.sendMessage("§cCleared monsters!");
-            } 
-            else if (clicked == Material.DIAMOND) {
-                player.sendMessage("§bCleared ground items!");
-            }
-            else if (clicked == Material.PLAYER_HEAD) {
-                openPlayerList(player);
-            }
+            if (event.getCurrentItem().getType() == Material.PLAYER_HEAD) openPlayerList(admin);
         }
         
-        // Logic for Player List
+        // 2. PLAYER LIST LOGIC
         else if (title.equals("§0Online Players")) {
             event.setCancelled(true);
-            // We will add "Kick/Ban" logic here next!
-            player.sendMessage("§eYou clicked on: " + event.getCurrentItem().getItemMeta().getDisplayName());
+            String targetName = event.getCurrentItem().getItemMeta().getDisplayName().substring(2);
+            Player target = Bukkit.getPlayer(targetName);
+            if (target != null) openPunishMenu(admin, target);
+        }
+
+        // 3. PUNISH MENU LOGIC
+        else if (title.startsWith("§cManage: ")) {
+            event.setCancelled(true);
+            UUID targetUUID = targetCache.get(admin.getUniqueId());
+            if (targetUUID == null) return;
+            Player target = Bukkit.getPlayer(targetUUID);
+
+            if (target == null) {
+                admin.sendMessage("§cPlayer is no longer online.");
+                return;
+            }
+
+            Material clicked = event.getCurrentItem().getType();
+            if (clicked == Material.COMPASS) {
+                admin.teleport(target.getLocation());
+                admin.sendMessage("§aTeleported to " + target.getName());
+            } else if (clicked == Material.BARRIER) {
+                target.kickPlayer("§cKicked by an admin using Parservice.");
+            } else if (clicked == Material.BEDROCK) {
+                Bukkit.getBanList(org.bukkit.BanList.Type.NAME).addBan(target.getName(), "§cBanned by Parservice", null, null);
+                target.kickPlayer("§cBanned!");
+            }
+            admin.closeInventory();
         }
     }
 
