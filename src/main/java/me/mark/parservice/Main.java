@@ -53,8 +53,6 @@ public class Main extends JavaPlugin implements Listener {
         return false;
     }
 
-    // --- ALL MENUS ---
-
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
         gui.setItem(10, createGuiItem(Material.BONE, "§c§lKill All Mobs"));
@@ -114,8 +112,6 @@ public class Main extends JavaPlugin implements Listener {
         admin.openInventory(punish);
     }
 
-    // --- EVENTS ---
-
     @EventHandler
     public void onChat(AsyncPlayerChatEvent event) {
         if (chatMuted && !event.getPlayer().isOp()) {
@@ -172,15 +168,18 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private void handleSpawnClick(Player admin, Material m) {
-        if (m == Material.TNT) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.TNT);
+        if (m == Material.TNT) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.PRIMED_TNT);
         else if (m == Material.IRON_BLOCK) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.IRON_GOLEM);
         else if (m == Material.BARRIER) admin.getInventory().addItem(new ItemStack(Material.BARRIER));
         else if (m == Material.ARROW) openMainGUI(admin);
     }
 
     private void handlePunishClick(Player admin, Material m) {
-        Player target = Bukkit.getPlayer(targetCache.get(admin.getUniqueId()));
+        UUID targetId = targetCache.get(admin.getUniqueId());
+        if (targetId == null) return;
+        Player target = Bukkit.getPlayer(targetId);
         if (target == null) return;
+
         if (m == Material.COMPASS) admin.teleport(target.getLocation());
         else if (m == Material.GOLD_INGOT && econ != null) econ.depositPlayer(target, 1000);
         else if (m == Material.BARRIER) target.kickPlayer("§cKicked!");
