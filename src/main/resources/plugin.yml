@@ -1,1 +1,9 @@
-
+name: Parservice
+version: 1.0
+main: me.mark.parservice.Main
+api-version: 1.20
+author: MarkAnthony
+commands:
+  adminpanel:
+    description: Open the admin panel
+    aliases: [ap]
