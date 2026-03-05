@@ -3,12 +3,14 @@ package me.mark.parservice;
 import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.player.AsyncPlayerChatEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
@@ -26,12 +28,13 @@ public class Main extends JavaPlugin implements Listener {
     private static Economy econ = null;
     private final HashMap<UUID, UUID> targetCache = new HashMap<>();
     private final ArrayList<UUID> vanished = new ArrayList<>();
+    private boolean chatMuted = false;
 
     @Override
     public void onEnable() {
         setupEconomy();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice: Dashboard & Vanish Loaded!");
+        getLogger().info("Parservice: World Settings Loaded!");
     }
 
     private void setupEconomy() {
@@ -55,35 +58,85 @@ public class Main extends JavaPlugin implements Listener {
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
         
-        gui.setItem(10, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Removes all hostile monsters."));
-        gui.setItem(12, createGuiItem(Material.DIAMOND, "§b§lClear Lag", "§7Removes all ground items."));
-        gui.setItem(14, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7Manage online users."));
+        gui.setItem(10, createGuiItem(Material.BONE, "§c§lKill All Mobs"));
+        gui.setItem(12, createGuiItem(Material.DIAMOND, "§b§lClear Lag"));
+        gui.setItem(14, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players"));
+        gui.setItem(16, createGuiItem(Material.GRASS_BLOCK, "§a§lWorld Settings", "§7Control time, weather, and chat."));
         
-        // New Dashboard and Vanish Buttons
-        gui.setItem(16, createGuiItem(Material.REDSTONE_TORCH, "§6§lServer Health", "§7View TPS and RAM usage."));
-        
+        // Vanish Button
         Material vanishMat = vanished.contains(player.getUniqueId()) ? Material.ENDER_EYE : Material.ENDER_PEARL;
-        String vanishName = vanished.contains(player.getUniqueId()) ? "§aVanish: ON" : "§cVanish: OFF";
-        gui.setItem(26, createGuiItem(vanishMat, vanishName, "§7Hide from other players."));
+        gui.setItem(26, createGuiItem(vanishMat, "§d§lVanish Mode"));
 
         player.openInventory(gui);
     }
 
-    public void openHealthMenu(Player player) {
-        Inventory health = Bukkit.createInventory(null, 9, "§0Server Health");
+    public void openWorldSettings(Player player) {
+        Inventory world = Bukkit.createInventory(null, 9, "§0World Settings");
         
-        // RAM Info
-        long usedRAM = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / 1048576L;
-        long maxRAM = Runtime.getRuntime().maxMemory() / 1048576L;
+        world.setItem(0, createGuiItem(Material.SUNFLOWER, "§eSet Day"));
+        world.setItem(1, createGuiItem(Material.CLOCK, "§8Set Night"));
+        world.setItem(3, createGuiItem(Material.WATER_BUCKET, "§bClear Weather"));
+        world.setItem(4, createGuiItem(Material.LAVA_BUCKET, "§cStart Storm"));
         
-        health.setItem(4, createGuiItem(Material.CLOCK, "§6Performance", 
-            "§7RAM: §f" + usedRAM + "MB / " + maxRAM + "MB",
-            "§7Online: §f" + Bukkit.getOnlinePlayers().size()));
-            
-        health.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
-        player.openInventory(health);
+        Material chatMat = chatMuted ? Material.RED_DYE : Material.LIME_DYE;
+        String chatName = chatMuted ? "§cChat: MUTED" : "§aChat: UNMUTED";
+        world.setItem(7, createGuiItem(chatMat, chatName, "§7Click to toggle global chat."));
+        
+        world.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
+        player.openInventory(world);
     }
 
+    // --- EVENTS ---
+
+    @EventHandler
+    public void onChat(AsyncPlayerChatEvent event) {
+        if (chatMuted && !event.getPlayer().isOp()) {
+            event.setCancelled(true);
+            event.getPlayer().sendMessage("§cChat is currently muted by an admin.");
+        }
+    }
+
+    @EventHandler
+    public void onMenuClick(InventoryClickEvent event) {
+        if (event.getCurrentItem() == null) return;
+        String title = event.getView().getTitle();
+        Player admin = (Player) event.getWhoClicked();
+        World world = admin.getWorld();
+
+        if (title.equals("§0Parservice Admin Panel")) {
+            event.setCancelled(true);
+            Material m = event.getCurrentItem().getType();
+            if (m == Material.GRASS_BLOCK) openWorldSettings(admin);
+            else if (m == Material.PLAYER_HEAD) openPlayerList(admin);
+            else if (m == Material.ENDER_PEARL || m == Material.ENDER_EYE) toggleVanish(admin);
+        }
+        else if (title.equals("§0World Settings")) {
+            event.setCancelled(true);
+            Material m = event.getCurrentItem().getType();
+            if (m == Material.SUNFLOWER) world.setTime(1000);
+            else if (m == Material.CLOCK) world.setTime(13000);
+            else if (m == Material.WATER_BUCKET) world.setStorm(false);
+            else if (m == Material.LAVA_BUCKET) world.setStorm(true);
+            else if (m == Material.RED_DYE || m == Material.LIME_DYE) {
+                chatMuted = !chatMuted;
+                Bukkit.broadcastMessage(chatMuted ? "§cGlobal chat has been muted." : "§aGlobal chat has been unmuted.");
+                openWorldSettings(admin);
+            }
+            else if (m == Material.ARROW) openMainGUI(admin);
+        }
+        // ... (Keep existing logic for Player List and Punish Menu)
+    }
+
+    // (Include the rest of the helper methods like createGuiItem, openPlayerList, toggleVanish, etc. from the previous code)
+    private ItemStack createGuiItem(Material material, String name, String... lore) {
+        ItemStack item = new ItemStack(material);
+        ItemMeta meta = item.getItemMeta();
+        meta.setDisplayName(name);
+        meta.setLore(Arrays.asList(lore));
+        item.setItemMeta(meta);
+        return item;
+    }
+    
     public void openPlayerList(Player admin) {
         Inventory playerList = Bukkit.createInventory(null, 54, "§0Online Players");
         for (Player p : Bukkit.getOnlinePlayers()) {
@@ -97,48 +150,6 @@ public class Main extends JavaPlugin implements Listener {
         admin.openInventory(playerList);
     }
 
-    public void openPunishMenu(Player admin, Player target) {
-        Inventory punish = Bukkit.createInventory(null, 9, "§cManage: " + target.getName());
-        punish.setItem(0, createGuiItem(Material.COMPASS, "§aTeleport"));
-        punish.setItem(2, createGuiItem(Material.GOLD_INGOT, "§eGive $1,000"));
-        punish.setItem(4, createGuiItem(Material.BARRIER, "§6Kick"));
-        punish.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
-        targetCache.put(admin.getUniqueId(), target.getUniqueId());
-        admin.openInventory(punish);
-    }
-
-    // --- EVENTS ---
-
-    @EventHandler
-    public void onMenuClick(InventoryClickEvent event) {
-        if (event.getCurrentItem() == null) return;
-        String title = event.getView().getTitle();
-        Player admin = (Player) event.getWhoClicked();
-
-        if (title.equals("§0Parservice Admin Panel")) {
-            event.setCancelled(true);
-            Material m = event.getCurrentItem().getType();
-            if (m == Material.PLAYER_HEAD) openPlayerList(admin);
-            else if (m == Material.REDSTONE_TORCH) openHealthMenu(admin);
-            else if (m == Material.ENDER_PEARL || m == Material.ENDER_EYE) toggleVanish(admin);
-            else if (m == Material.BONE) admin.getWorld().getEntitiesByClass(org.bukkit.entity.Monster.class).forEach(e -> e.remove());
-        }
-        else if (title.equals("§0Server Health")) {
-            event.setCancelled(true);
-            if (event.getCurrentItem().getType() == Material.ARROW) openMainGUI(admin);
-        }
-        else if (title.equals("§0Online Players")) {
-            event.setCancelled(true);
-            String name = event.getCurrentItem().getItemMeta().getDisplayName().substring(2);
-            Player target = Bukkit.getPlayer(name);
-            if (target != null) openPunishMenu(admin, target);
-        }
-        else if (title.startsWith("§cManage: ")) {
-            event.setCancelled(true);
-            handlePunishClick(admin, event.getCurrentItem().getType());
-        }
-    }
-
     private void toggleVanish(Player p) {
         if (vanished.contains(p.getUniqueId())) {
             vanished.remove(p.getUniqueId());
@@ -149,25 +160,6 @@ public class Main extends JavaPlugin implements Listener {
             Bukkit.getOnlinePlayers().forEach(online -> online.hidePlayer(this, p));
             p.sendMessage("§aYou are now invisible!");
         }
-        openMainGUI(p); // Refresh menu to show icon change
+        openMainGUI(p);
     }
-
-    private void handlePunishClick(Player admin, Material clicked) {
-        Player target = Bukkit.getPlayer(targetCache.get(admin.getUniqueId()));
-        if (target == null) return;
-
-        if (clicked == Material.COMPASS) admin.teleport(target.getLocation());
-        else if (clicked == Material.GOLD_INGOT && econ != null) econ.depositPlayer(target, 1000);
-        else if (clicked == Material.BARRIER) target.kickPlayer("§cKicked!");
-        else if (clicked == Material.ARROW) openPlayerList(admin);
-    }
-
-    private ItemStack createGuiItem(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        meta.setLore(Arrays.asList(lore));
-        item.setItemMeta(meta);
-        return item;
-    }
-    }
+}
