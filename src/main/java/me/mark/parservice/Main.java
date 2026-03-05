@@ -34,7 +34,7 @@ public class Main extends JavaPlugin implements Listener {
     public void onEnable() {
         setupEconomy();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice: Fully Loaded!");
+        getLogger().info("Parservice: Admin Suite Finalized!");
     }
 
     private void setupEconomy() {
@@ -53,6 +53,31 @@ public class Main extends JavaPlugin implements Listener {
         return false;
     }
 
+    // --- CHAT LOGIC ---
+    @EventHandler
+    public void onChat(AsyncPlayerChatEvent event) {
+        Player player = event.getPlayer();
+        String message = event.getMessage();
+
+        // Admin Chat (Messages starting with @)
+        if (message.startsWith("@") && player.isOp()) {
+            event.setCancelled(true);
+            String adminMsg = "§8[§cAdminChat§8] §f" + player.getName() + ": §b" + message.substring(1);
+            Bukkit.getConsoleSender().sendMessage(adminMsg);
+            for (Player online : Bukkit.getOnlinePlayers()) {
+                if (online.isOp()) online.sendMessage(adminMsg);
+            }
+            return;
+        }
+
+        // Mute Logic
+        if (chatMuted && !player.isOp()) {
+            event.setCancelled(true);
+            player.sendMessage("§cThe global chat is currently muted.");
+        }
+    }
+
+    // --- GUI MENUS ---
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
         gui.setItem(10, createGuiItem(Material.BONE, "§c§lKill All Mobs"));
@@ -71,7 +96,6 @@ public class Main extends JavaPlugin implements Listener {
         world.setItem(0, createGuiItem(Material.SUNFLOWER, "§eSet Day"));
         world.setItem(1, createGuiItem(Material.CLOCK, "§8Set Night"));
         world.setItem(3, createGuiItem(Material.WATER_BUCKET, "§bClear Weather"));
-        
         Material chatMat = chatMuted ? Material.RED_DYE : Material.LIME_DYE;
         world.setItem(7, createGuiItem(chatMat, chatMuted ? "§cChat: MUTED" : "§aChat: UNMUTED"));
         world.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
@@ -113,14 +137,6 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     @EventHandler
-    public void onChat(AsyncPlayerChatEvent event) {
-        if (chatMuted && !event.getPlayer().isOp()) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage("§cChat is muted!");
-        }
-    }
-
-    @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
         if (event.getCurrentItem() == null) return;
         String title = event.getView().getTitle();
@@ -146,9 +162,11 @@ public class Main extends JavaPlugin implements Listener {
         }
         else if (title.equals("§0Online Players")) {
             event.setCancelled(true);
-            String name = event.getCurrentItem().getItemMeta().getDisplayName().substring(2);
-            Player target = Bukkit.getPlayer(name);
-            if (target != null) openPunishMenu(admin, target);
+            if (event.getCurrentItem().getType() == Material.PLAYER_HEAD) {
+                String name = event.getCurrentItem().getItemMeta().getDisplayName().substring(2);
+                Player target = Bukkit.getPlayer(name);
+                if (target != null) openPunishMenu(admin, target);
+            }
         }
         else if (title.startsWith("§cManage: ")) {
             event.setCancelled(true);
@@ -175,9 +193,9 @@ public class Main extends JavaPlugin implements Listener {
     }
 
     private void handlePunishClick(Player admin, Material m) {
-        UUID targetId = targetCache.get(admin.getUniqueId());
-        if (targetId == null) return;
-        Player target = Bukkit.getPlayer(targetId);
+        UUID tid = targetCache.get(admin.getUniqueId());
+        if (tid == null) return;
+        Player target = Bukkit.getPlayer(tid);
         if (target == null) return;
 
         if (m == Material.COMPASS) admin.teleport(target.getLocation());
@@ -189,10 +207,10 @@ public class Main extends JavaPlugin implements Listener {
     private void toggleVanish(Player p) {
         if (vanished.contains(p.getUniqueId())) {
             vanished.remove(p.getUniqueId());
-            Bukkit.getOnlinePlayers().forEach(online -> online.showPlayer(this, p));
+            Bukkit.getOnlinePlayers().forEach(o -> o.showPlayer(this, p));
         } else {
             vanished.add(p.getUniqueId());
-            Bukkit.getOnlinePlayers().forEach(online -> online.hidePlayer(this, p));
+            Bukkit.getOnlinePlayers().forEach(o -> o.hidePlayer(this, p));
         }
         openMainGUI(p);
     }
