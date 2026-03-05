@@ -1,5 +1,6 @@
 package me.mark.parservice;
 
+import net.milkbowl.vault.economy.Economy;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
 import org.bukkit.command.Command;
@@ -12,6 +13,7 @@ import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.SkullMeta;
+import org.bukkit.plugin.RegisteredServiceProvider;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.Arrays;
@@ -20,13 +22,26 @@ import java.util.UUID;
 
 public class Main extends JavaPlugin implements Listener {
 
-    // This helps the plugin remember which player an admin is looking at
+    private static Economy econ = null;
     private final HashMap<UUID, UUID> targetCache = new HashMap<>();
 
     @Override
     public void onEnable() {
+        if (!setupEconomy()) {
+            getLogger().severe(String.format("[%s] - Disabled due to no Vault dependency found!", getDescription().getName()));
+            getServer().getPluginManager().disablePlugin(this);
+            return;
+        }
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice: Punish Module Loaded!");
+        getLogger().info("Parservice: Economy & Punish Loaded!");
+    }
+
+    private boolean setupEconomy() {
+        if (getServer().getPluginManager().getPlugin("Vault") == null) return false;
+        RegisteredServiceProvider<Economy> rsp = getServer().getServicesManager().getRegistration(Economy.class);
+        if (rsp == null) return false;
+        econ = rsp.getProvider();
+        return econ != null;
     }
 
     @Override
@@ -59,13 +74,13 @@ public class Main extends JavaPlugin implements Listener {
         admin.openInventory(playerList);
     }
 
-    // NEW: The specific menu for Kicking/Teleporting
     public void openPunishMenu(Player admin, Player target) {
         Inventory punish = Bukkit.createInventory(null, 9, "§cManage: " + target.getName());
         
-        punish.setItem(2, createGuiItem(Material.COMPASS, "§aTeleport", "§7Go to this player."));
+        punish.setItem(0, createGuiItem(Material.COMPASS, "§aTeleport", "§7Go to this player."));
+        punish.setItem(2, createGuiItem(Material.GOLD_INGOT, "§eGive $1,000", "§7Add money to their balance."));
         punish.setItem(4, createGuiItem(Material.BARRIER, "§6Kick Player", "§7Remove them from the server."));
-        punish.setItem(6, createGuiItem(Material.BEDROCK, "§4Ban Player", "§7Permanent ban."));
+        punish.setItem(8, createGuiItem(Material.ARROW, "§7Back", "§7Return to player list."));
 
         targetCache.put(admin.getUniqueId(), target.getUniqueId());
         admin.openInventory(punish);
@@ -77,13 +92,11 @@ public class Main extends JavaPlugin implements Listener {
         String title = event.getView().getTitle();
         Player admin = (Player) event.getWhoClicked();
 
-        // 1. MAIN MENU LOGIC
         if (title.equals("§0Parservice Admin Panel")) {
             event.setCancelled(true);
             if (event.getCurrentItem().getType() == Material.PLAYER_HEAD) openPlayerList(admin);
         }
         
-        // 2. PLAYER LIST LOGIC
         else if (title.equals("§0Online Players")) {
             event.setCancelled(true);
             String targetName = event.getCurrentItem().getItemMeta().getDisplayName().substring(2);
@@ -91,29 +104,24 @@ public class Main extends JavaPlugin implements Listener {
             if (target != null) openPunishMenu(admin, target);
         }
 
-        // 3. PUNISH MENU LOGIC
         else if (title.startsWith("§cManage: ")) {
             event.setCancelled(true);
             UUID targetUUID = targetCache.get(admin.getUniqueId());
-            if (targetUUID == null) return;
             Player target = Bukkit.getPlayer(targetUUID);
 
-            if (target == null) {
-                admin.sendMessage("§cPlayer is no longer online.");
-                return;
-            }
+            if (target == null) return;
 
             Material clicked = event.getCurrentItem().getType();
             if (clicked == Material.COMPASS) {
                 admin.teleport(target.getLocation());
-                admin.sendMessage("§aTeleported to " + target.getName());
+            } else if (clicked == Material.GOLD_INGOT) {
+                econ.depositPlayer(target, 1000);
+                admin.sendMessage("§a[Parservice] Gave $1,000 to " + target.getName());
             } else if (clicked == Material.BARRIER) {
-                target.kickPlayer("§cKicked by an admin using Parservice.");
-            } else if (clicked == Material.BEDROCK) {
-                Bukkit.getBanList(org.bukkit.BanList.Type.NAME).addBan(target.getName(), "§cBanned by Parservice", null, null);
-                target.kickPlayer("§cBanned!");
+                target.kickPlayer("§cKicked via Parservice");
+            } else if (clicked == Material.ARROW) {
+                openPlayerList(admin);
             }
-            admin.closeInventory();
         }
     }
 
