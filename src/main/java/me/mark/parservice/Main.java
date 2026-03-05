@@ -24,9 +24,8 @@ public class Main extends JavaPlugin implements Listener {
 
     @Override
     public void onEnable() {
-        // This line is VERY important. It tells the server to watch for clicks!
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice is Online and Listening!");
+        getLogger().info("Parservice is Online!");
     }
 
     @Override
@@ -42,75 +41,39 @@ public class Main extends JavaPlugin implements Listener {
     public void openMainGUI(Player player) {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
 
-        gui.setItem(11, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Removes all hostile monsters in this world."));
-        gui.setItem(13, createGuiItem(Material.DIAMOND, "§b§lClear Lag", "§7Removes all dropped items on the ground."));
-        gui.setItem(15, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7Coming soon..."));
+        gui.setItem(11, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Removes all hostile monsters."));
+        gui.setItem(13, createGuiItem(Material.DIAMOND, "§b§lClear Lag", "§7Removes all ground items."));
+        gui.setItem(15, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7(Work in Progress)"));
 
         player.openInventory(gui);
     }
 
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
-        // 1. Check if it's our menu
         if (event.getView().getTitle().equals("§0Parservice Admin Panel")) {
-            event.setCancelled(true); // Stop player from taking the item
+            event.setCancelled(true); 
 
             if (event.getCurrentItem() == null) return;
             Player player = (Player) event.getWhoClicked();
             Material clicked = event.getCurrentItem().getType();
 
-            // 2. Button Logic
             if (clicked == Material.BONE) {
-                killAllMobs(player.getWorld());
-                player.sendMessage("§c[Parservice] All monsters have been cleared!");
+                for (LivingEntity entity : player.getWorld().getLivingEntities()) {
+                    if (entity instanceof Monster) entity.remove();
+                }
+                player.sendMessage("§c[Parservice] All monsters cleared!");
                 player.closeInventory();
             } 
             else if (clicked == Material.DIAMOND) {
-                clearDroppedItems(player.getWorld());
-                player.sendMessage("§b[Parservice] All ground items have been cleared!");
+                for (Entity entity : player.getWorld().getEntities()) {
+                    if (entity instanceof Item) entity.remove();
+                }
+                player.sendMessage("§b[Parservice] All ground items cleared!");
                 player.closeInventory();
             }
         }
     }
 
-    private void killAllMobs(World world) {
-        for (LivingEntity entity : world.getLivingEntities()) {
-            if (entity instanceof Monster) { // Only kills hostile mobs like Zombies/Creepers
-                entity.remove();
-            }
-        }
-    }
-
-    private void clearDroppedItems(World world) {
-        for (Entity entity : world.getEntities()) {
-            if (entity instanceof Item) { // Only removes items on the ground
-                entity.remove();
-            }
-        }
-    }
-
-    private ItemStack createGuiItem(Material material, String name, String... lore) {
-        ItemStack item = new ItemStack(material);
-        ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        meta.setLore(Arrays.asList(lore));
-        item.setItemMeta(meta);
-        return item;
-    }
-                }
-        // Button 1: Kill All Mobs (Bone)
-        gui.setItem(11, createGuiItem(Material.BONE, "§c§lKill All Mobs", "§7Clears all hostile monsters nearby."));
-
-        // Button 2: Clear Lag (Diamond)
-        gui.setItem(13, createGuiItem(Material.DIAMOND, "§b§lClear Lag", "§7Removes ground items and clears RAM."));
-
-        // Button 3: Player Management (Player Head)
-        gui.setItem(15, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players", "§7Open the player moderation list."));
-
-        player.openInventory(gui);
-    }
-
-    // Helper method to make creating items easier
     private ItemStack createGuiItem(Material material, String name, String... lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
