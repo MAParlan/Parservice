@@ -6,7 +6,7 @@ import org.bukkit.Material;
 import org.bukkit.World;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
-import org.bukkit.entity.Player;
+import org.bukkit.entity.*;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
@@ -34,7 +34,7 @@ public class Main extends JavaPlugin implements Listener {
     public void onEnable() {
         setupEconomy();
         getServer().getPluginManager().registerEvents(this, this);
-        getLogger().info("Parservice: World Settings Loaded!");
+        getLogger().info("Parservice: Spawner Module Loaded!");
     }
 
     private void setupEconomy() {
@@ -59,92 +59,92 @@ public class Main extends JavaPlugin implements Listener {
         Inventory gui = Bukkit.createInventory(null, 27, "§0Parservice Admin Panel");
         
         gui.setItem(10, createGuiItem(Material.BONE, "§c§lKill All Mobs"));
-        gui.setItem(12, createGuiItem(Material.DIAMOND, "§b§lClear Lag"));
-        gui.setItem(14, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players"));
-        gui.setItem(16, createGuiItem(Material.GRASS_BLOCK, "§a§lWorld Settings", "§7Control time, weather, and chat."));
+        gui.setItem(11, createGuiItem(Material.DIAMOND, "§b§lClear Lag"));
+        gui.setItem(13, createGuiItem(Material.PLAYER_HEAD, "§e§lManage Players"));
+        gui.setItem(15, createGuiItem(Material.GRASS_BLOCK, "§a§lWorld Settings"));
+        gui.setItem(16, createGuiItem(Material.CHICKEN_SPAWN_EGG, "§6§lSpawn Menu", "§7Summon entities and items."));
         
-        // Vanish Button
         Material vanishMat = vanished.contains(player.getUniqueId()) ? Material.ENDER_EYE : Material.ENDER_PEARL;
         gui.setItem(26, createGuiItem(vanishMat, "§d§lVanish Mode"));
 
         player.openInventory(gui);
     }
 
-    public void openWorldSettings(Player player) {
-        Inventory world = Bukkit.createInventory(null, 9, "§0World Settings");
+    public void openSpawnMenu(Player player) {
+        Inventory spawn = Bukkit.createInventory(null, 9, "§0Spawn Menu");
         
-        world.setItem(0, createGuiItem(Material.SUNFLOWER, "§eSet Day"));
-        world.setItem(1, createGuiItem(Material.CLOCK, "§8Set Night"));
-        world.setItem(3, createGuiItem(Material.WATER_BUCKET, "§bClear Weather"));
-        world.setItem(4, createGuiItem(Material.LAVA_BUCKET, "§cStart Storm"));
+        spawn.setItem(0, createGuiItem(Material.TNT, "§cSummon Primed TNT"));
+        spawn.setItem(1, createGuiItem(Material.IRON_BLOCK, "§fSummon Iron Golem"));
+        spawn.setItem(2, createGuiItem(Material.VILLAGER_SPAWN_EGG, "§6Summon Villager"));
         
-        Material chatMat = chatMuted ? Material.RED_DYE : Material.LIME_DYE;
-        String chatName = chatMuted ? "§cChat: MUTED" : "§aChat: UNMUTED";
-        world.setItem(7, createGuiItem(chatMat, chatName, "§7Click to toggle global chat."));
+        spawn.setItem(5, createGuiItem(Material.BARRIER, "§cGet Barrier Block"));
+        spawn.setItem(6, createGuiItem(Material.COMMAND_BLOCK, "§6Get Command Block"));
         
-        world.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
-        player.openInventory(world);
+        spawn.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
+        player.openInventory(spawn);
     }
 
     // --- EVENTS ---
-
-    @EventHandler
-    public void onChat(AsyncPlayerChatEvent event) {
-        if (chatMuted && !event.getPlayer().isOp()) {
-            event.setCancelled(true);
-            event.getPlayer().sendMessage("§cChat is currently muted by an admin.");
-        }
-    }
 
     @EventHandler
     public void onMenuClick(InventoryClickEvent event) {
         if (event.getCurrentItem() == null) return;
         String title = event.getView().getTitle();
         Player admin = (Player) event.getWhoClicked();
-        World world = admin.getWorld();
 
         if (title.equals("§0Parservice Admin Panel")) {
             event.setCancelled(true);
             Material m = event.getCurrentItem().getType();
-            if (m == Material.GRASS_BLOCK) openWorldSettings(admin);
+            if (m == Material.CHICKEN_SPAWN_EGG) openSpawnMenu(admin);
+            else if (m == Material.GRASS_BLOCK) openWorldSettings(admin);
             else if (m == Material.PLAYER_HEAD) openPlayerList(admin);
             else if (m == Material.ENDER_PEARL || m == Material.ENDER_EYE) toggleVanish(admin);
+            else if (m == Material.BONE) admin.getWorld().getEntitiesByClass(Monster.class).forEach(Entity::remove);
+            else if (m == Material.DIAMOND) admin.getWorld().getEntitiesByClass(Item.class).forEach(Entity::remove);
         }
-        else if (title.equals("§0World Settings")) {
+        else if (title.equals("§0Spawn Menu")) {
             event.setCancelled(true);
             Material m = event.getCurrentItem().getType();
-            if (m == Material.SUNFLOWER) world.setTime(1000);
-            else if (m == Material.CLOCK) world.setTime(13000);
-            else if (m == Material.WATER_BUCKET) world.setStorm(false);
-            else if (m == Material.LAVA_BUCKET) world.setStorm(true);
-            else if (m == Material.RED_DYE || m == Material.LIME_DYE) {
-                chatMuted = !chatMuted;
-                Bukkit.broadcastMessage(chatMuted ? "§cGlobal chat has been muted." : "§aGlobal chat has been unmuted.");
-                openWorldSettings(admin);
-            }
+            if (m == Material.TNT) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.TNT);
+            else if (m == Material.IRON_BLOCK) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.IRON_GOLEM);
+            else if (m == Material.VILLAGER_SPAWN_EGG) admin.getWorld().spawnEntity(admin.getLocation(), EntityType.VILLAGER);
+            else if (m == Material.BARRIER) admin.getInventory().addItem(new ItemStack(Material.BARRIER));
+            else if (m == Material.COMMAND_BLOCK) admin.getInventory().addItem(new ItemStack(Material.COMMAND_BLOCK));
             else if (m == Material.ARROW) openMainGUI(admin);
         }
-        // ... (Keep existing logic for Player List and Punish Menu)
+        // (Keep World Settings, Player List, and Punish logic here)
     }
 
-    // (Include the rest of the helper methods like createGuiItem, openPlayerList, toggleVanish, etc. from the previous code)
+    // Helper methods (createGuiItem, openWorldSettings, openPlayerList, toggleVanish, etc.)
     private ItemStack createGuiItem(Material material, String name, String... lore) {
         ItemStack item = new ItemStack(material);
         ItemMeta meta = item.getItemMeta();
-        meta.setDisplayName(name);
-        meta.setLore(Arrays.asList(lore));
-        item.setItemMeta(meta);
+        if (meta != null) {
+            meta.setDisplayName(name);
+            meta.setLore(Arrays.asList(lore));
+            item.setItemMeta(meta);
+        }
         return item;
     }
-    
+
+    public void openWorldSettings(Player player) {
+        Inventory world = Bukkit.createInventory(null, 9, "§0World Settings");
+        world.setItem(0, createGuiItem(Material.SUNFLOWER, "§eSet Day"));
+        world.setItem(3, createGuiItem(Material.WATER_BUCKET, "§bClear Weather"));
+        world.setItem(8, createGuiItem(Material.ARROW, "§7Back"));
+        player.openInventory(world);
+    }
+
     public void openPlayerList(Player admin) {
         Inventory playerList = Bukkit.createInventory(null, 54, "§0Online Players");
         for (Player p : Bukkit.getOnlinePlayers()) {
             ItemStack head = new ItemStack(Material.PLAYER_HEAD);
             SkullMeta meta = (SkullMeta) head.getItemMeta();
-            meta.setOwningPlayer(p);
-            meta.setDisplayName("§f" + p.getName());
-            head.setItemMeta(meta);
+            if (meta != null) {
+                meta.setOwningPlayer(p);
+                meta.setDisplayName("§f" + p.getName());
+                head.setItemMeta(meta);
+            }
             playerList.addItem(head);
         }
         admin.openInventory(playerList);
@@ -154,11 +154,11 @@ public class Main extends JavaPlugin implements Listener {
         if (vanished.contains(p.getUniqueId())) {
             vanished.remove(p.getUniqueId());
             Bukkit.getOnlinePlayers().forEach(online -> online.showPlayer(this, p));
-            p.sendMessage("§cYou are no longer invisible.");
+            p.sendMessage("§cVanish Off");
         } else {
             vanished.add(p.getUniqueId());
             Bukkit.getOnlinePlayers().forEach(online -> online.hidePlayer(this, p));
-            p.sendMessage("§aYou are now invisible!");
+            p.sendMessage("§aVanish On");
         }
         openMainGUI(p);
     }
